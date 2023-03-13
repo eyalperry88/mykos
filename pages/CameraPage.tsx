@@ -1,29 +1,49 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, TouchableWithoutFeedback, Dimensions, Image, Button } from 'react-native';
-import { Camera, CameraType, FlashMode } from 'expo-camera';
-import { Ionicons } from '@expo/vector-icons';
+import { StyleSheet, Text, View, TouchableOpacity, TouchableWithoutFeedback, Dimensions, Image, Button, Platform, ActivityIndicator } from 'react-native';
+import { Camera, CameraType, FlashMode, ImageType } from 'expo-camera';
+import { AntDesign, Ionicons } from '@expo/vector-icons';
 import { Col, Row, Grid } from "react-native-easy-grid";
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import {uploadPhotoToFirebase} from '../data';
 
 const { width: winWidth, height: winHeight } = Dimensions.get('window');
 
+const WINDOW_HEIGHT = Dimensions.get('window').height;
+const CAPTURE_SIZE = Math.floor(WINDOW_HEIGHT * 0.08);
+
 export default function CameraPage() {
   const cameraRef = useRef<Camera>(null)
-  const [permission, requestPermission] = Camera.useCameraPermissions();
+  const [hasPermission, setHasPermission] = useState(false);
   const [flashMode, setFlashMode] = useState(FlashMode.off)
   const [cameraType, setCameraType] = useState(CameraType.back);
   const [capturing, setCapturing] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [isPreview, setIsPreview] = useState(false);
+  const [isCameraReady, setIsCameraReady] = useState(false);
+  const [photoData, setPhotoData] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const navigate = useNavigate();
+
+  
+  const pid = searchParams.get("pid");
+
+
+  // permissions stuff
+  if (!hasPermission && Platform.OS === 'web') {
+    setHasPermission(true);
+  }
+    
 
   const _grantPermission = async () => {
-    await requestPermission();
+    const permission = await Camera.requestCameraPermissionsAsync();
+    if (permission) {
+      setHasPermission(permission.granted);
+    }
     window.location.reload();
+
   }
 
-  if (!permission) {
-    // Camera permissions are still loading
-    return <View />;
-  }
-
-  if (!permission.granted) {
+  if (!hasPermission) {
     // Camera permissions are not granted yet
     return (
       <View style={styles.permissionContainer}>
@@ -31,18 +51,67 @@ export default function CameraPage() {
       </View>
     );
   }
+  // ------------------------
 
-  const _switchCameraTypes = async (ct: CameraType) => {
-    setCameraType(ct);
-  }
+  const onCameraReady = () => {
+    setIsCameraReady(true);
+  };
 
+
+  const switchCamera = () => {
+    if (isPreview) {
+      return;
+    }
+    setCameraType(prevCameraType =>
+      prevCameraType === CameraType.back
+        ? CameraType.front
+        : CameraType.back
+    );
+  };
   
-  const _takePhoto = async () => {
+  const takePhoto = async () => {
     if (cameraRef.current) {
-      const photo = await cameraRef.current.takePictureAsync()
-      console.log(photo)
+      const options = { 
+        quality: 0.8, 
+        base64: true,
+        imageType: ImageType.jpg
+      };
+      const data = await cameraRef.current.takePictureAsync(options);
+      const source = data.base64;
+
+      if (source && pid) {
+        setPhotoData(source);
+        await cameraRef.current.pausePreview();
+        setIsPreview(true);
+      }
     }
   }
+
+  const uploadPhoto = async () => {
+    if (!uploading && pid) {
+      setUploading(true);
+      const ret = await uploadPhotoToFirebase(pid, photoData);
+
+      if (cameraRef.current) {
+        await cameraRef.current.resumePreview();
+        setIsPreview(false);
+      }
+
+      setUploading(false);
+      if (ret) {
+        navigate("/");
+      }
+    }
+    
+
+  }
+
+  const cancelPreview = async () => {
+    if (cameraRef.current) {
+      await cameraRef.current.resumePreview();
+      setIsPreview(false);
+    }
+  };
 
   const onCaptureIn = () => {
     setCapturing(true);
@@ -56,19 +125,43 @@ export default function CameraPage() {
     // not supported
   };
   const onShortCapture = () => {
-    _takePhoto();
+    takePhoto();
     setCapturing(false);
   };
 
   return (
     <View style={styles.container}>
-      {!permission ? <Text>Please enable camera</Text> :
-        <Camera style={styles.camera} type={cameraType} ref={cameraRef}>
+      {!hasPermission ? <Text>Please enable camera</Text> :
+        <Camera 
+          style={styles.camera} 
+          type={cameraType} 
+          flashMode={flashMode} 
+          ref={cameraRef}
+          onCameraReady={onCameraReady}
+        >
+          
           <Image 
             style={styles.plantOutline}
-            source={require('../assets/plant_mask.png')}
+            source={require('../assets/plant_outline.png')}
           />
           <Grid style={styles.bottomToolbar}>
+          {isPreview && (
+            <Row>
+                <Col style={styles.alignCenter}>
+                  <TouchableOpacity onPress={uploadPhoto} >
+                    <Ionicons name='cloud-upload' size={48} color="white" />
+                  </TouchableOpacity>
+                </Col>
+                <Col style={styles.alignCenter}>
+                  <TouchableOpacity onPress={cancelPreview} activeOpacity={0.7} >
+                    <Ionicons name='close' size={30} color='white' />
+                  </TouchableOpacity>
+                </Col>
+
+            </Row>
+            
+          )}
+          {!isPreview && (
             <Row>
                 <Col style={styles.alignCenter}>
                     <TouchableOpacity onPress={() => setFlashMode( 
@@ -93,9 +186,7 @@ export default function CameraPage() {
                     </TouchableWithoutFeedback>
                 </Col>
                 <Col style={styles.alignCenter}>
-                    <TouchableOpacity onPress={() => _switchCameraTypes(
-                        cameraType === CameraType.back ? CameraType.back : CameraType.back
-                    )}>
+                    <TouchableOpacity onPress={switchCamera}>
                         <Ionicons
                             name="md-camera-reverse"
                             color="white"
@@ -104,9 +195,12 @@ export default function CameraPage() {
                     </TouchableOpacity>
                 </Col>
             </Row>
+            )}
           </Grid>
         </Camera>
       }
+      {uploading && <View style={styles.uploading}><ActivityIndicator size="large"  color="#fff" /></View>}
+
     </View>
   );
 }
@@ -116,6 +210,15 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "black"
+  },
+  uploading: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: winHeight/2,
+    alignItems: 'center',
+    justifyContent: 'center'
   },
   permissionContainer: {
     flex: 1,
