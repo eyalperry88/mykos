@@ -25,7 +25,15 @@ export default function CameraPage() {
   const navigate = useNavigate();
 
   
-  const pid = searchParams.get("pid");
+  const pid = searchParams.get("plant_id");
+
+  if (!pid || !(Number(pid) > 0 && Number(pid) < 9999)) {
+    return (
+      <View style={styles.permissionContainer}>
+        <Text style={{color: 'white', fontSize: 17, padding: 20}}>Invalid PlantQR Code!<br/>Please scan again.</Text>
+      </View>
+    );
+  }
 
 
   // permissions stuff
@@ -129,6 +137,10 @@ export default function CameraPage() {
     setCapturing(false);
   };
 
+  const goToHome = () => {
+    navigate("/");
+  }
+
   return (
     <View style={styles.container}>
       {!hasPermission ? <Text>Please enable camera</Text> :
@@ -139,13 +151,21 @@ export default function CameraPage() {
           ref={cameraRef}
           onCameraReady={onCameraReady}
         >
-          
+          <TouchableWithoutFeedback
+                onPress={goToHome}>
+                <View style={styles.goToHome}>
+                    
+                </View>
+            </TouchableWithoutFeedback>
           <Image 
             style={styles.plantOutline}
             source={require('../assets/plant_outline.png')}
+            resizeMode="stretch"
           />
-          <Grid style={styles.bottomToolbar}>
+          
+          
           {isPreview && (
+          <Grid style={styles.bottomToolbar2}>
             <Row>
                 <Col style={styles.alignCenter}>
                   <TouchableOpacity onPress={uploadPhoto} >
@@ -159,12 +179,13 @@ export default function CameraPage() {
                 </Col>
 
             </Row>
-            
+          </Grid>
           )}
           {!isPreview && (
+          <Grid style={styles.bottomToolbar}>
             <Row>
                 <Col style={styles.alignCenter}>
-                    <TouchableOpacity onPress={() => setFlashMode( 
+                    {/* <TouchableOpacity onPress={() => setFlashMode( 
                         flashMode === FlashMode.on ? FlashMode.off : FlashMode.on 
                     )}>
                         <Ionicons
@@ -172,7 +193,7 @@ export default function CameraPage() {
                             color="white"
                             size={30}
                         />
-                    </TouchableOpacity>
+                    </TouchableOpacity> */}
                 </Col>
                 <Col size={2} style={styles.alignCenter}>
                     <TouchableWithoutFeedback
@@ -186,17 +207,17 @@ export default function CameraPage() {
                     </TouchableWithoutFeedback>
                 </Col>
                 <Col style={styles.alignCenter}>
-                    <TouchableOpacity onPress={switchCamera}>
+                    {/* <TouchableOpacity onPress={switchCamera}>
                         <Ionicons
                             name="md-camera-reverse"
                             color="white"
                             size={30}
                         />
-                    </TouchableOpacity>
+                    </TouchableOpacity> */}
                 </Col>
-            </Row>
+              </Row>
+            </Grid>
             )}
-          </Grid>
         </Camera>
       }
       {uploading && <View style={styles.uploading}><ActivityIndicator size="large"  color="#fff" /></View>}
@@ -209,7 +230,8 @@ export default function CameraPage() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "black"
+    backgroundColor: "white",
+
   },
   uploading: {
     position: 'absolute',
@@ -219,6 +241,13 @@ const styles = StyleSheet.create({
     bottom: winHeight/2,
     alignItems: 'center',
     justifyContent: 'center'
+  },
+  goToHome: {
+    width: winWidth,
+    height: 42,
+    position: 'absolute',
+    top: 0,
+    zIndex: 999
   },
   permissionContainer: {
     flex: 1,
@@ -242,12 +271,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   bottomToolbar: {
-      width: winWidth-80,
+      width: winWidth-120,
       position: 'absolute',
       height: 100,
-      bottom: 0,
-      left: 40
+      bottom: 30,
+      left: 65
   },
+  bottomToolbar2: {
+    width: winWidth-120,
+    position: 'absolute',
+    height: 100,
+    bottom: 30,
+    left: 70
+},
   captureBtn: {
       width: 60,
       height: 60,

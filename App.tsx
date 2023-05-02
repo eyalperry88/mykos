@@ -11,6 +11,7 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="upload" element={<CameraPage />} />
+        <Route path="u" element={<CameraPage />} />
         <Route path="/" element={<HomePage />} />
       </Routes>
     </BrowserRouter>
